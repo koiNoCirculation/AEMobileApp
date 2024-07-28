@@ -56,7 +56,7 @@ export default function Settings({ route, navigation }) {
                     Toast.show({content: "请从下拉菜单里面选择一个网络作为你的主网", icon: succIcon()});
                 }
             } catch (e) {
-                Toast.show({content: "请检查网络连接是否正常" + e, icon: failIcon()});
+                Toast.show({content: '请检查网络连接是否正常或者地址是否输错', icon: failIcon()});
             }
         } else {
             Toast.show({content: "请先填入服务器IP和密码。进入游戏后在ME控制器旁放置倪哥监控器获得密码。", icon: (failIcon())})
@@ -138,11 +138,11 @@ export default function Settings({ route, navigation }) {
                                     Toast.show({content: "测试成功", icon: succIcon()})
                                     //alert('测试成功');
                                 } else {
-                                    Toast.show({content: '测试失败,请检查地址', icon: failIcon()});
+                                    Toast.show({content: '请检查网络连接是否正常或者地址是否输错', icon: failIcon()});
                                 }
                             }).catch(e => {
                                 console.log(url)
-                                Toast.show({content: '请检查网络连接是否正常', icon: failIcon()});
+                                Toast.show({content: '请检查网络连接是否正常或者地址是否输错', icon: failIcon()});
                             })
                         })
                     }}>测试连接</Button>
@@ -153,10 +153,20 @@ export default function Settings({ route, navigation }) {
 
                     <Button type="primary" onPress={() => {
                         console.log("press");
-                        SecureStore.setItem('server.ip', ip);
-                        SecureStore.setItem('server.scheme', scheme);
-                        SecureStore.setItem("user.uuid", uuid);
-                        SecureStore.setItem("user.ae_main_net", JSON.stringify(network));
+                        try {
+                            SecureStore.setItem('server.ip', ip);
+                            SecureStore.setItem('server.scheme', scheme);
+                            SecureStore.setItem("user.uuid", uuid);
+                            if(network == null) {
+                                Toast.show({content: '保存失败,请在下拉菜单选择一个有效的主网', icon: failIcon()});
+                                return;
+                            } else {
+                                SecureStore.setItem("user.ae_main_net", JSON.stringify(network));
+                            }
+                        } catch(e) {
+                            Toast.show({content: '保存失败,请在下拉菜单选择一个有效的主网', icon: failIcon()});
+                            return;
+                        }
                         if(navigation.canGoBack()) {
                             navigation.goBack();
                         } else {
