@@ -10,6 +10,7 @@ import { Dimensions } from "react-native";
 import AntDesign from '@expo/vector-icons/AntDesign';
 import { List } from "@ant-design/react-native";
 import { Provider } from "@ant-design/react-native";
+import { Image } from "react-native";
 
 
 export default function Settings({ route, navigation }) {
@@ -17,16 +18,29 @@ export default function Settings({ route, navigation }) {
     const [scheme, setScheme] = useState("http");
     const [uuid, setUUID] = useState(null);
     const [networks, setNetworks] = useState([])
+    const [network, setNetwork] = useState<{dimid: number, x: number, y: number, z: number}>();
     const [value, setValue] = useState(null);
-    const [network, setNetwork] = useState<string[]>(['0','0','0','0']);
     const [isFocus, setIsFocus] = useState(false);
 
     useEffect(() => {
         setIP(SecureStore.getItem('server.ip'));
         setUUID(SecureStore.getItem('user.uuid'));
         setScheme(SecureStore.getItem('server.scheme') == null ? 'http' : SecureStore.getItem('server.scheme'));
-        setNetwork(SecureStore.getItem('user.ae_main_net')?.split(","));
+        try {
+            console.log(SecureStore.getItem('user.ae_main_net'))
+            setNetwork(JSON.parse(SecureStore.getItem('user.ae_main_net')));
+        } catch(e) {
+            setNetwork(null);
+        }
     }, [])
+
+    function failIcon() {
+        return (<Image source={require("./barrier.png")}></Image>);
+    }
+
+    function succIcon() {
+        return (<Image source={require("./assets/stargate.png")}></Image>)
+    }
 
     async function getAENetworks() {
         console.log(ip, scheme)
@@ -36,16 +50,16 @@ export default function Settings({ route, navigation }) {
                 console.log(JSON.stringify(resp))
                 var j = await resp.json()
                 if (j.body.length <= 0) {
-                    Toast.fail("你还没在服务器放置倪哥监控器")
+                    Toast.show({content: "你还没在服务器放置倪哥监控器", icon: failIcon()})
                 } else {
                     setNetworks(j.body);
-                    Toast.success("请选择一个网络作为你的主网");
+                    Toast.show({content: "请从下拉菜单里面选择一个网络作为你的主网", icon: succIcon()});
                 }
             } catch (e) {
-                alert("请检查网络连接是否正常" + e);
+                Toast.show({content: "请检查网络连接是否正常" + e, icon: failIcon()});
             }
         } else {
-            Toast.fail("请先填入服务器IP和密码。进入游戏后在ME控制器旁放置倪哥监控器获得密码。")
+            Toast.show({content: "请先填入服务器IP和密码。进入游戏后在ME控制器旁放置倪哥监控器获得密码。", icon: (failIcon())})
         }
     }
 
@@ -74,6 +88,7 @@ export default function Settings({ route, navigation }) {
                     onBlur={() => setIsFocus(false)}
                     onChange={item => {
                         setValue(item.value);
+                        setNetwork(networks[item.value]);
                         setIsFocus(false);
                     }}
                     renderLeftIcon={() => (
@@ -97,7 +112,7 @@ export default function Settings({ route, navigation }) {
                 </List>
                 <List renderHeader="连接的AE网络">
                     <List.Item>
-                        <Text> {network != null ? `DIM:${network[0]}, x:${network[1]}, y:${network[2]}, z:${network[3]}`  : '未连接'}</Text>
+                        <Text> {network?.x != null ? `DIM:${network.dimid}, x:${network.x}, y:${network.y}, z:${network.z}`  : '未连接'}</Text>
                     </List.Item>
                 </List>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
@@ -108,10 +123,10 @@ export default function Settings({ route, navigation }) {
                             console.log(r.status)
                             setScheme('http')
                             if (r.status == 200) {
-                                Toast.success("测试成功")
+                                Toast.show({content: "测试成功", icon: succIcon()})
                                 //alert('测试成功');
                             } else {
-                                alert('测试失败,请检查地址');
+                                Toast.show({content: '测试失败,请检查地址', icon: failIcon()});
                             }
                         }).catch(e => {
                             url = `https://${ip}:44444/AEMobileTest`
@@ -120,14 +135,14 @@ export default function Settings({ route, navigation }) {
                                 console.log(r.status)
                                 setScheme('https')
                                 if (r.status == 200) {
-                                    Toast.success("测试成功")
+                                    Toast.show({content: "测试成功", icon: succIcon()})
                                     //alert('测试成功');
                                 } else {
-                                    alert('测试失败,请检查地址');
+                                    Toast.show({content: '测试失败,请检查地址', icon: failIcon()});
                                 }
                             }).catch(e => {
                                 console.log(url)
-                                alert("请检查网络连接是否正常: " + e);
+                                Toast.show({content: '请检查网络连接是否正常', icon: failIcon()});
                             })
                         })
                     }}>测试连接</Button>
@@ -141,8 +156,12 @@ export default function Settings({ route, navigation }) {
                         SecureStore.setItem('server.ip', ip);
                         SecureStore.setItem('server.scheme', scheme);
                         SecureStore.setItem("user.uuid", uuid);
-                        SecureStore.setItem("user.ae_main_net", `${networks[value].dimid},${networks[value].x},${networks[value].y},${networks[value].z}`);
-                        navigation.navigate('Main');
+                        SecureStore.setItem("user.ae_main_net", JSON.stringify(network));
+                        if(navigation.canGoBack()) {
+                            navigation.goBack();
+                        } else {
+                            navigation.navigate('Main');
+                        }
                     }}>保存设置</Button>
                 </View>
 

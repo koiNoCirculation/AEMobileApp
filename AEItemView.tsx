@@ -20,7 +20,7 @@ import * as SecureStore from 'expo-secure-store'
 import { useContext } from "react";
 import Settings from "./Settings";
 import { Animated } from "react-native";
-import { Button as AntButton, Tooltip } from '@ant-design/react-native';
+import { ActivityIndicator, Button as AntButton, Tooltip } from '@ant-design/react-native';
 import Input from "@ant-design/react-native/lib/input-item/Input";
 import { Card } from '@ant-design/react-native'
 var NBT = require('parsenbt-js');
@@ -164,12 +164,13 @@ function loadItemSingle(db: SQLiteDatabase, item: CraftingTaskItem) {
 
 function AECraftingPlanView({ route, navigation }) {
     const db = useSQLiteContext();
-    const { craftingPlan, itemInput } = route.params
+    const { craftingPlan, itemStack } = route.params
     const [craftingTaskItem, setCraftingTaskItem] = useState<CraftingTaskItem[]>(craftingPlan.plan);
     const [canCraft, setCanCraft] = useState(true);
     const [cpus, setCpus] = useState([]);
     const [isFocus, setIsFocus] = useState(false);
     const [value, setValue] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
     const stylesDropDown = StyleSheet.create({
         container: {
             backgroundColor: 'white',
@@ -215,7 +216,7 @@ function AECraftingPlanView({ route, navigation }) {
     const [ip, setIP] = useState<string>(null);
     const [scheme, setScheme] = useState<number>(null);
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState("0,0,0,0");
+    const [networks, setNetworks] = useState<{dimid: number, x: number, y: number, z: number}>({} as any);
     useEffect(() => {
         console.log(serverInfo);
         const { ip, scheme, uuid, mainnet } = JSON.parse(serverInfo)
@@ -228,13 +229,13 @@ function AECraftingPlanView({ route, navigation }) {
     function renderItem({ index, item }) {
         const [dname, icon] = loadItemSingle(db, item);
         return (
-            <Card style={{ borderStyle: 'solid', borderWidth: 1, backgroundColor: !item.missing ? '#00FF00' : '#FF0000' }}>
+            <Card style={{ flex:1, flexDirection:'column', backgroundColor: !item.missing ? '#00FF00' : '#FF0000' }}>
                 <Card.Header title={(<Text style={{ fontSize: 10 }}>{dname}</Text>)} thumb={(<Image style={{ width: 32, height: 32 }} source={icon != null ? { uri: `data:image/png;base64,${icon}` } : require('./barrier.png')}></Image>)}>
                 </Card.Header>
                 <Card.Body>
                     <View style={{ flex: 1, flexDirection: 'column' }}>
-                        {<Text>目前有:{formatItemCount(item.numberPresent)}</Text>}
-                        {<Text>{item.missing > 0 ? `缺失:${formatItemCount(item.missing)}` : `计划合成:${formatItemCount(item.numberRemainingToCraft)}`}</Text>}
+                        {<Text style={{fontSize: 10}}>目前有:{formatItemCount(item.numberPresent)}</Text>}
+                        {<Text style={{fontSize: 10}}>{item.missing > 0 ? `缺失:${formatItemCount(item.missing)}` : `计划合成:${formatItemCount(item.numberRemainingToCraft)}`}</Text>}
                     </View>
                 </Card.Body>
             </Card>
@@ -251,11 +252,10 @@ function AECraftingPlanView({ route, navigation }) {
                 break;
             }
         }
-        const [dimid, x, y, z] = networks.split(",");
+        const {dimid, x, y, z} = networks;
         let url = `${scheme}://${ip}:44444/AE2/getCraftingCpuInfoNoSSE?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}`;
 
         fetch(url).then(resp => {
-            console.log(resp);
             resp.json().then(j => {
                 if (j.succeed) {
                     setCpus(j.body);
@@ -277,8 +277,10 @@ function AECraftingPlanView({ route, navigation }) {
 
     //            
     return (<View style={styles.container}>
+        <ActivityIndicator toast animating={submitting} size="large" text="正在提交合成任务"/>
         <Button title="确认合成计划" disabled={!canCraft} onPress={() => {
-            const [dimid, x, y, z] = networks.split(",");
+            setSubmitting(true);
+            const {dimid, x, y, z} = networks;
             var params = {
                 'ownerUUID': uuid,
                 'x': x,
@@ -286,10 +288,10 @@ function AECraftingPlanView({ route, navigation }) {
                 'z': z,
                 'dimid': dimid,
                 'cpuId': value + '',
-                count: itemInput.count,
-                item: itemInput.item_name,
-                meta: itemInput.meta,
-                nbt: itemInput.nbt
+                count: itemStack.count,
+                item: itemStack.item_name,
+                meta: itemStack.meta,
+                nbt: itemStack.nbt
             }
             fetch(`${scheme}://${ip}:44444/AE2/startCraftingJob`,
                 {
@@ -299,16 +301,21 @@ function AECraftingPlanView({ route, navigation }) {
                     },
                     body: encode(params)
                 }).then(e => {
+                    setSubmitting(false);
                     e.json().then(j => {
                         if (j.succeed) {
-                            navigation.navigate("AECrafting");
+                            navigation.popToTop();
+                            alert("合成任务提交成功");
                         } else {
                             alert("合成任务提交失败");
-                            navigation.popToTop();
                         }
                     })
+                }).catch(e => {
+                    console.log("提交出错" + e);
+                    setSubmitting(false);
+                    alert("合成任务提交失败");
                 })
-            console.log("开始合成 " + JSON.stringify(itemInput));
+            console.log("开始合成 " + JSON.stringify(itemStack));
         }} />
         <Dropdown
             style={[stylesDropDown.dropdown, isFocus && { borderColor: 'blue' }]}
@@ -344,7 +351,16 @@ function AECraftingPlanView({ route, navigation }) {
                 />
             )}
         />
-        <FlexGrid keyExtractor={(item, index) => index.toString()} data={craftingTaskItem} renderItem={renderItem} virtualization={true} virtualizedBufferFactor={4} maxColumnRatioUnits={3} itemSizeUnit={108} showScrollIndicator={true} style={{ flex: 1, alignItems: 'center' }} />
+        <FlexGrid keyExtractor={(item, index) => index.toString()} 
+        data={craftingTaskItem} 
+        renderItem={renderItem} 
+        virtualization={true}
+         virtualizedBufferFactor={4} 
+         maxColumnRatioUnits={3}
+          itemSizeUnit={108}
+           showScrollIndicator={true}
+            style={{ flex: 1, alignItems: 'center' }}
+            itemContainerStyle={{borderStyle: 'solid', borderWidth: 1}} />
     </View>);
 }
 
@@ -356,7 +372,7 @@ function AECraftingDetailView({ route, navigation }) {
     const [ip, setIP] = useState<string>(null);
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState("0,0,0,0");
+    const [networks, setNetworks] = useState<{dimid: number, x: number, y: number, z: number}>({} as any);
     const [isConnected, setIsConnected] = useState(false);
     let es = null;
 
@@ -369,16 +385,16 @@ function AECraftingDetailView({ route, navigation }) {
     }, [])
 
     function renderItem({ index, item }) {
-        const [dname, icon] = loadItemSingle(db, item);
         return (
-            <Card style={{ borderStyle: 'solid', borderWidth: 1, backgroundColor: item.numberSent > 0 ? '#00FF80' : (item.numberRemainingToCraft > 0 ? '#FFFE00' : '#FFFFFF') }}>
-                <Card.Header title={(<Text style={{ fontSize: 10 }}>{dname}</Text>)} thumb={(<Image style={{ width: 32, height: 32 }} source={icon != null ? { uri: `data:image/png;base64,${icon}` } : require('./barrier.png')}></Image>)}>
+            <Card style={{flex:1, flexDirection:'column', backgroundColor: item.numberSent > 0 ? '#00FF80' : (item.numberRemainingToCraft > 0 ? '#FFFE00' : '#FFFFFF') }}>
+                <Card.Header title={(<Text style={{ fontSize: 9 }}>{item.dname}</Text>)} thumb={(<Image style={{ width: 24, height: 24 }} source={item.icon != null ? { uri: `data:image/png;base64,${item.icon}` } : require('./barrier.png')}></Image>)}>
                 </Card.Header>
                 <Card.Body>
                     <View style={{ flex: 1, flexDirection: 'column' }}>
-                        {item.numberPresent > 0 ? <Text>目前有:{item.numberPresent}</Text> : <View></View>}
-                        {(item.missing > 0 || item.numberRemainingToCraft > 0) ? <Text>{item.missing > 0 ? `缺失:${item.missing}` : `计划合成:${item.numberRemainingToCraft}`}</Text> : <View></View>}
-                        {(item.numberSent > 0 ? <Text>{`正在合成:${item.numberSent}`}</Text> : <View />)}
+                        {item.numberPresent > 0 ? <Text style={{fontSize:10}}>目前有:{formatItemCount(item.numberPresent)}</Text> : <View></View>}
+                        {item.missing > 0 ? <Text style={{fontSize:10}}>{`缺失:${formatItemCount(item.missing)}`})</Text> : <View/>}
+                        {item.numberRemainingToCraft > 0 ? <Text style={{fontSize:10}}>{`计划合成:${formatItemCount(item.numberRemainingToCraft)}`}</Text> : <View/>}
+                        {(item.numberSent > 0 ? <Text style={{fontSize:10}}>{`正在合成:${formatItemCount(item.numberSent)}`}</Text> : <View />)}
                     </View>
                 </Card.Body>
             </Card>
@@ -390,13 +406,18 @@ function AECraftingDetailView({ route, navigation }) {
         if (ip == null && scheme != null) {
             return;
         }
-        const [dimid, x, y, z] = networks.split(",");
+        const {dimid, x, y, z}= networks;
         var es: EventSource = new EventSource(`${scheme}://${ip}:44444/AE2/getCraftingDetails?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}&cpuid=${cpuid}`)
         es.addEventListener("message", (event) => {
             var resp = JSON.parse(event.data);
             if (resp.succeed) {
                 setIsConnected(true)
-                let itemList = resp.body as CraftingTaskItem[]
+                let itemList = resp.body
+                itemList.forEach(e => {
+                    const [dname, icon] = loadItemSingle(db, e);
+                    e.dname = dname;
+                    e.icon = icon;
+                })
                 setCraftingTaskItem(itemList);
             } else {
                 es.close();
@@ -444,7 +465,7 @@ function AECraftingDetailView({ route, navigation }) {
             </TouchableOpacity>
             <Button onPress={() => {
                 const { cpuid } = route.params;
-                const [dimid, x, y, z] = networks.split(",");
+                const {dimid, x, y, z} = networks;
                 var params = {
                     'ownerUUID': uuid,
                     'x': x,
@@ -467,7 +488,15 @@ function AECraftingDetailView({ route, navigation }) {
                 })
             }} title="取消合成"></Button></View>
         <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
-            <FlexGrid keyExtractor={(item, index) => index.toString()} data={craftingTaskItem} renderItem={renderItem} virtualization={true} virtualizedBufferFactor={1} maxColumnRatioUnits={Math.floor(Dimensions.get('window').width / 108)} itemSizeUnit={108} showScrollIndicator={true} style={{ flex: 1, alignItems: 'center' }} />
+            <FlexGrid keyExtractor={(item, index) => index.toString()}
+             data={craftingTaskItem}
+              renderItem={renderItem} 
+              virtualization={true}
+               virtualizedBufferFactor={1}
+                maxColumnRatioUnits={Math.floor(Dimensions.get('window').width / 108)} itemSizeUnit={108}
+                 showScrollIndicator={true}
+                  style={{ flex: 1, alignItems: 'center' }}
+                  itemContainerStyle={{borderStyle: 'solid', borderWidth: 1, flexGrow: 0}} />
         </View>
     </View>);
 }
@@ -483,7 +512,7 @@ function AECraftingCPUView({ route, navigation }) {
     const [ip, setIP] = useState<string>('http');
     const [scheme, setScheme] = useState<number>(null);
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState("0,0,0,0");
+    const [networks, setNetworks] = useState<{dimid: number, x: number, y: number, z: number}>({} as any);
     useEffect(() => {
         const { ip, scheme, uuid, mainnet } = JSON.parse(serverInfo)
         setIP(ip);
@@ -493,11 +522,10 @@ function AECraftingCPUView({ route, navigation }) {
     }, [])
 
     function getData() {
-        const [dimid, x, y, z] = networks.split(",");
+        const {dimid, x, y, z} = networks;
         var es = new EventSource(`${scheme}://${ip}:44444/AE2/getCraftingCpuInfo?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}`)
         es.addEventListener("message", (event) => {
             var resp = JSON.parse(event.data);
-            console.log(event.data)
             if (resp.succeed) {
                 var j = JSON.parse(event.data);
                 if (j.succeed) {
@@ -570,7 +598,7 @@ function AEItemDetailView({ route, navigation }) {
     const [ip, setIP] = useState<string>(null);
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState("0,0,0,0");
+    const [networks, setNetworks] = useState<{dimid:number, x: number, y: number, z: number}>({} as any);
 
     const [calculating, setCalculating] = useState(false);
 
@@ -652,7 +680,7 @@ function AEItemDetailView({ route, navigation }) {
                 loadingAnimation.start();
                 setCalculating(true);
 
-                const [dimid, x, y, z] = networks.split(",");
+                const {dimid, x, y, z} = networks;
                 var params = {
                     'ownerUUID': uuid,
                     'x': x,
@@ -674,12 +702,13 @@ function AEItemDetailView({ route, navigation }) {
                 es.addEventListener('message', (event) => {
                     let data = JSON.parse(event.data)
                     if (typeof(data.body) != 'string') {
+                        data.body.plan.sort((a, b) => b.missing - a.missing)
                         console.log(event.data)
                         loadingAnimation.stop();
                         itemstack.count = count;
                         setCalculating(false);
                         es.close();
-                        navigation.navigate('AECraftingPlanView', { craftingPlan: data.body, item: itemstack });
+                        navigation.navigate('AECraftingPlanView', { craftingPlan: data.body, itemStack: itemstack });
                     }
                 })
                 es.addEventListener('close', (event) => {
@@ -708,7 +737,7 @@ function AEItemView({ route, navigation }) {
     const [ip, setIP] = useState<string>(null);
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState("0,0,0,0");
+    const [networks, setNetworks] = useState<{dimid:number, x: number, y: number, z: number}>({} as any);
 
     const [sortAsc, setSortAsc] = useState(false);
 
@@ -821,7 +850,7 @@ function AEItemView({ route, navigation }) {
         return r;
     }
     function getData() {
-        const [dimid, x, y, z] = networks.split(",");
+        const {dimid, x, y, z} = networks;
         var es: EventSource = new EventSource(`${scheme}://${ip}:44444/AE2/getItems?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}&craftableOnly=${!showAll}`)
         es.addEventListener("message", (event) => {
             var resp = JSON.parse(event.data);
@@ -955,17 +984,16 @@ function AEItemStackedView({ route, navigation }) {
 }
 
 export default function AEView({ route, navigation }) {
-    const [serverInfo, setServerInfo] = useState<{ ip: string, scheme: string, uuid: string, mainnet: string }>(null);
+    const serverInfo = {
+        ip: SecureStore.getItem('server.ip'),
+        scheme: SecureStore.getItem('server.scheme'),
+        uuid: SecureStore.getItem('user.uuid'),
+        mainnet: JSON.parse(SecureStore.getItem('user.ae_main_net'))
+    }
     const [fluidMapping, setFluidMapping] = useState({})
     const db = useSQLiteContext()
     const [ready, setReady] = useState(false);
     useEffect(() => {
-        setServerInfo({
-            ip: SecureStore.getItem('server.ip'),
-            scheme: SecureStore.getItem('server.scheme'),
-            uuid: SecureStore.getItem('user.uuid'),
-            mainnet: SecureStore.getItem('user.ae_main_net')
-        })
         console.log(JSON.stringify({
             ip: SecureStore.getItem('server.ip'),
             port: SecureStore.getItem('server.port'),
