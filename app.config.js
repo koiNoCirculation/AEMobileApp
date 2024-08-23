@@ -2,7 +2,7 @@ module.exports = {
   "expo": {
     "name": "AEMobile",
     "slug": "AEMobile",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,12 +14,7 @@ module.exports = {
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "dev.youtiao.aemonitor",
-      "buildNumber": "2",
-      "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        }
-      },
+      "buildNumber": "3"
     },
     "android": {
       "adaptiveIcon": {
