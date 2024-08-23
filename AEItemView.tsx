@@ -894,11 +894,15 @@ function AEItemView({ route, navigation }) {
                 })
                 //console.log(JSON.stringify(fluidInfo));
                 //[r.item_name, r.amount, r.meta];
-                let in_query_1 = itemList.map(i => '\'' + i.item_name + '\'');
+                let querySet = new Set()
+                itemList.forEach(i => querySet.add('\'' + i.item_name.replace('\'', "''") + '\''));
                 Object.keys(fluidInfo).forEach((k) => {
-                    in_query_1.push('\'' + fluidInfo[k][0] + '\'');
+                    querySet.add('\'' + fluidInfo[k][0] + '\'');
                 })
-                let sql = `select concat(item_name, ':', item_meta) as key, icon, dname from item_panel where item_name in (${in_query_1.join(",")});`;
+                let tojoin = [];
+                querySet.forEach(i => tojoin.push(i));
+                let sql = `select concat(item_name, ':', item_meta) as key, icon, dname from item_panel where item_name in (${tojoin.join(",")});`;
+                console.log(sql);
                 db.getAllAsync<{ key: string, icon: Uint8Array, dname: string }>(sql).then(
                     data => {
                         setLoadedItem(prevState => {
@@ -909,7 +913,9 @@ function AEItemView({ route, navigation }) {
                             return newState;
                         })
                     }
-                );
+                ).catch(e => {
+                    console.log(e);
+                });
                 setRawItems(itemList);
                 console.log("物品页-连接")
                 setIsConnected(true)
@@ -1032,7 +1038,7 @@ export default function AEView({ route, navigation }) {
             })
             setFluidMapping(m);
             setReady(true);
-        })
+        }).catch(e => console.log(e));
     }, [])
 
     function scrOptions({ route }) {
