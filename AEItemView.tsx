@@ -214,16 +214,22 @@ function AECraftingPlanView({ route, navigation }) {
 
     const serverInfo = useContext(ServerInfoContext)
     const [ip, setIP] = useState<string>(null);
+    const [port, setPort] = useState<string>("");
     const [scheme, setScheme] = useState<number>(null);
     const [uuid, setUUID] = useState(null);
     const [networks, setNetworks] = useState<{dimid: number, x: number, y: number, z: number}>({} as any);
     useEffect(() => {
         console.log(serverInfo);
-        const { ip, scheme, uuid, mainnet } = JSON.parse(serverInfo)
+        const { ip, scheme, uuid, mainnet, port } = JSON.parse(serverInfo)
         setIP(ip);
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
+        if(port != null) {
+            setPort(port)
+        } else {
+            setPort("44444");
+        }
     }, [])
 
     function renderItem({ index, item }) {
@@ -253,7 +259,7 @@ function AECraftingPlanView({ route, navigation }) {
             }
         }
         const {dimid, x, y, z} = networks;
-        let url = `${scheme}://${ip}:44444/AE2/getCraftingCpuInfoNoSSE?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}`;
+        let url = `${scheme}://${ip}:${port}/AE2/getCraftingCpuInfoNoSSE?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}`;
 
         fetch(url).then(resp => {
             resp.json().then(j => {
@@ -293,7 +299,7 @@ function AECraftingPlanView({ route, navigation }) {
                 meta: itemStack.meta,
                 nbt: itemStack.nbt
             }
-            fetch(`${scheme}://${ip}:44444/AE2/startCraftingJob`,
+            fetch(`${scheme}://${ip}:${port}/AE2/startCraftingJob`,
                 {
                     method: 'POST',
                     headers: {
@@ -370,6 +376,7 @@ function AECraftingDetailView({ route, navigation }) {
 
     const serverInfo = useContext(ServerInfoContext)
     const [ip, setIP] = useState<string>(null);
+    const [port, setPort] = useState("");
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
     const [networks, setNetworks] = useState<{dimid: number, x: number, y: number, z: number}>({} as any);
@@ -377,11 +384,16 @@ function AECraftingDetailView({ route, navigation }) {
     let es = null;
 
     useEffect(() => {
-        const { ip, scheme, uuid, mainnet } = JSON.parse(serverInfo)
+        const { ip, scheme, uuid, mainnet,port } = JSON.parse(serverInfo)
         setIP(ip);
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
+        if(port != null) {
+            setPort(port)
+        } else {
+            setPort("44444");
+        }
     }, [])
 
     function renderItem({ index, item }) {
@@ -407,7 +419,7 @@ function AECraftingDetailView({ route, navigation }) {
             return;
         }
         const {dimid, x, y, z}= networks;
-        var es: EventSource = new EventSource(`${scheme}://${ip}:44444/AE2/getCraftingDetails?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}&cpuid=${cpuid}`)
+        var es: EventSource = new EventSource(`${scheme}://${ip}:${port}/AE2/getCraftingDetails?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}&cpuid=${cpuid}`)
         es.addEventListener("message", (event) => {
             var resp = JSON.parse(event.data);
             if (resp.succeed) {
@@ -474,7 +486,7 @@ function AECraftingDetailView({ route, navigation }) {
                     'dimid': dimid,
                     'cpuid': cpuid + ''
                 }
-                fetch(`${scheme}://${ip}:44444/AE2/cancelTask`, {
+                fetch(`${scheme}://${ip}:${port}/AE2/cancelTask`, {
                     method: 'POST',
                     headers: {
                         'content-type': 'application/x-www-form-urlencoded'
@@ -509,21 +521,27 @@ function AECraftingCPUView({ route, navigation }) {
     const db = useSQLiteContext();
 
     const serverInfo = useContext(ServerInfoContext)
-    const [ip, setIP] = useState<string>('http');
-    const [scheme, setScheme] = useState<number>(null);
+    const [ip, setIP] = useState<string>(null);
+    const [port, setPort] = useState<string>("");
+    const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
     const [networks, setNetworks] = useState<{dimid: number, x: number, y: number, z: number}>({} as any);
     useEffect(() => {
-        const { ip, scheme, uuid, mainnet } = JSON.parse(serverInfo)
+        const { ip, scheme, uuid, mainnet, port} = JSON.parse(serverInfo)
         setIP(ip);
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
+        if(port != null) {
+            setPort(port)
+        } else {
+            setPort("44444");
+        }
     }, [])
 
     function getData() {
         const {dimid, x, y, z} = networks;
-        var es = new EventSource(`${scheme}://${ip}:44444/AE2/getCraftingCpuInfo?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}`)
+        var es = new EventSource(`${scheme}://${ip}:${port}/AE2/getCraftingCpuInfo?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}`)
         es.addEventListener("message", (event) => {
             var resp = JSON.parse(event.data);
             if (resp.succeed) {
@@ -596,6 +614,7 @@ function AEItemDetailView({ route, navigation }) {
 
     const serverInfo = useContext(ServerInfoContext)
     const [ip, setIP] = useState<string>(null);
+    const [port, setPort] = useState<string>("");
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
     const [networks, setNetworks] = useState<{dimid:number, x: number, y: number, z: number}>({} as any);
@@ -617,11 +636,16 @@ function AEItemDetailView({ route, navigation }) {
     })
 
     useEffect(() => {
-        const { ip, scheme, uuid, mainnet } = JSON.parse(serverInfo)
+        const { ip, scheme, uuid, mainnet, port} = JSON.parse(serverInfo)
         setIP(ip);
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
+        if(port != null) {
+            setPort(port)
+        } else {
+            setPort("44444");
+        }
     }, [])
     let es: EventSource = null;
     const { item, icon } = route.params
@@ -692,7 +716,7 @@ function AEItemDetailView({ route, navigation }) {
                     'nbt': nbt,
                     'count': count + ''
                 }
-                es = new EventSource(`${scheme}://${ip}:44444/AE2/generateCraftingPlan`, {
+                es = new EventSource(`${scheme}://${ip}:${port}/AE2/generateCraftingPlan`, {
                     method: 'POST',
                     headers: {
                         'content-type': 'application/x-www-form-urlencoded'
@@ -735,6 +759,7 @@ function AEItemView({ route, navigation }) {
     const serverInfo = useContext(ServerInfoContext);
     const fluidInfo = useContext(FluidInfoContext);
     const [ip, setIP] = useState<string>(null);
+    const [port, setPort] = useState<string>("");
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
     const [networks, setNetworks] = useState<{dimid:number, x: number, y: number, z: number}>({} as any);
@@ -765,11 +790,16 @@ function AEItemView({ route, navigation }) {
         if (serverInfo === "null") {
             return;
         }
-        const { ip, scheme, uuid, mainnet } = JSON.parse(serverInfo)
+        const { ip, scheme, uuid, mainnet,port} = JSON.parse(serverInfo)
         setIP(ip);
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
+        if(port != null) {
+            setPort(port)
+        } else {
+            setPort("44444");
+        }
     }, [serverInfo])
 
     const [spinValue, setSpinValue] = useState(new Animated.Value(0));
@@ -851,7 +881,7 @@ function AEItemView({ route, navigation }) {
     }
     function getData() {
         const {dimid, x, y, z} = networks;
-        var es: EventSource = new EventSource(`${scheme}://${ip}:44444/AE2/getItems?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}&craftableOnly=${!showAll}`)
+        var es: EventSource = new EventSource(`${scheme}://${ip}:${port}/AE2/getItems?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}&craftableOnly=${!showAll}`)
         es.addEventListener("message", (event) => {
             var resp = JSON.parse(event.data);
             if (resp.succeed) {
@@ -988,18 +1018,13 @@ export default function AEView({ route, navigation }) {
         ip: SecureStore.getItem('server.ip'),
         scheme: SecureStore.getItem('server.scheme'),
         uuid: SecureStore.getItem('user.uuid'),
-        mainnet: JSON.parse(SecureStore.getItem('user.ae_main_net'))
+        mainnet: JSON.parse(SecureStore.getItem('user.ae_main_net')),
+        port: SecureStore.getItem('server.port')
     }
     const [fluidMapping, setFluidMapping] = useState({})
     const db = useSQLiteContext()
     const [ready, setReady] = useState(false);
     useEffect(() => {
-        console.log(JSON.stringify({
-            ip: SecureStore.getItem('server.ip'),
-            port: SecureStore.getItem('server.port'),
-            uuid: SecureStore.getItem('user.uuid'),
-            mainnet: SecureStore.getItem('user.ae_main_net')
-        }));
         db.getAllAsync<{ fluid_name: string, item_name: string, amount: number, meta: string }>("select item_name, fluid_name, amount,fluid_container.meta as meta from fluid_container join item_panel on fluid_container.item=item_panel.item_name and fluid_container.meta = item_panel.item_meta").then(data => {
             let m = {};
             data.forEach(r => {

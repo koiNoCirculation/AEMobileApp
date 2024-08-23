@@ -15,6 +15,7 @@ import { Image } from "react-native";
 
 export default function Settings({ route, navigation }) {
     const [ip, setIP] = useState<string>(null);
+    const [port, setPort] = useState<string>("");
     const [scheme, setScheme] = useState("http");
     const [uuid, setUUID] = useState(null);
     const [networks, setNetworks] = useState([])
@@ -26,6 +27,12 @@ export default function Settings({ route, navigation }) {
         setIP(SecureStore.getItem('server.ip'));
         setUUID(SecureStore.getItem('user.uuid'));
         setScheme(SecureStore.getItem('server.scheme') == null ? 'http' : SecureStore.getItem('server.scheme'));
+        let port = SecureStore.getItem('server.port');
+        if(port != null) {
+            setPort(port)
+        } else {
+            setPort("44444");
+        }
         try {
             console.log(SecureStore.getItem('user.ae_main_net'))
             setNetwork(JSON.parse(SecureStore.getItem('user.ae_main_net')));
@@ -46,7 +53,7 @@ export default function Settings({ route, navigation }) {
         console.log(ip, scheme)
         if (ip !== undefined && scheme !== undefined) {
             try {
-                var resp = await fetch(`${scheme}://${ip}:44444/AE2/getNetworks?ownerUUID=${uuid}`);
+                var resp = await fetch(`${scheme}://${ip}:${port}/AE2/getNetworks?ownerUUID=${uuid}`);
                 console.log(JSON.stringify(resp))
                 var j = await resp.json()
                 if (j.body.length <= 0) {
@@ -61,6 +68,24 @@ export default function Settings({ route, navigation }) {
         } else {
             Toast.show({content: "请先填入服务器IP和密码。进入游戏后在ME控制器旁放置倪哥监控器获得密码。", icon: (failIcon())})
         }
+    }
+
+    function testHttps() {
+        let url = `https://${ip}:${port}/AEMobileTest`
+        console.log(url)
+        fetch(url).then(r => {
+            console.log(r.status)
+            setScheme('https')
+            if (r.status == 200) {
+                Toast.show({content: "测试成功", icon: succIcon()})
+                //alert('测试成功');
+            } else {
+                Toast.show({content: '请检查网络连接是否正常或者地址是否输错', icon: failIcon()});
+            }
+        }).catch(e => {
+            console.log(e)
+            Toast.show({content: '请检查网络连接是否正常或者地址是否输错', icon: failIcon()});
+        })
     }
 
     return (
@@ -105,6 +130,11 @@ export default function Settings({ route, navigation }) {
                         <TextInput defaultValue={ip} onChangeText={(txt) => { setIP(txt) }} />
                     </List.Item>
                 </List>
+                <List renderHeader="服务器端口">
+                    <List.Item>
+                        <TextInput defaultValue={port} onChangeText={(txt) => { setPort(txt) }} />
+                    </List.Item>
+                </List>
                 <List renderHeader="密码">
                     <List.Item>
                         <TextInput placeholder="游戏放下倪哥监控器后获取" defaultValue={uuid} onChangeText={(text) => setUUID(text)} />
@@ -117,7 +147,7 @@ export default function Settings({ route, navigation }) {
                 </List>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
                     <Button type='warning' onPress={() => {
-                        let url = `http://${ip}:44444/AEMobileTest`
+                        let url = `http://${ip}:${port}/AEMobileTest`
                         console.log(url)
                         fetch(url).then(r => {
                             console.log(r.status)
@@ -125,25 +155,13 @@ export default function Settings({ route, navigation }) {
                             if (r.status == 200) {
                                 Toast.show({content: "测试成功", icon: succIcon()})
                                 //alert('测试成功');
+                            } else if(r.status == 400){
+                                testHttps()
                             } else {
                                 Toast.show({content: '测试失败,请检查地址', icon: failIcon()});
                             }
                         }).catch(e => {
-                            url = `https://${ip}:44444/AEMobileTest`
-                            console.log(url)
-                            fetch(url).then(r => {
-                                console.log(r.status)
-                                setScheme('https')
-                                if (r.status == 200) {
-                                    Toast.show({content: "测试成功", icon: succIcon()})
-                                    //alert('测试成功');
-                                } else {
-                                    Toast.show({content: '请检查网络连接是否正常或者地址是否输错', icon: failIcon()});
-                                }
-                            }).catch(e => {
-                                console.log(url)
-                                Toast.show({content: '请检查网络连接是否正常或者地址是否输错', icon: failIcon()});
-                            })
+                            testHttps()
                         })
                     }}>测试连接</Button>
                     <Button type="primary" onPress={() => {
@@ -157,6 +175,7 @@ export default function Settings({ route, navigation }) {
                             SecureStore.setItem('server.ip', ip);
                             SecureStore.setItem('server.scheme', scheme);
                             SecureStore.setItem("user.uuid", uuid);
+                            SecureStore.setItem('server.port', port);
                             if(network == null) {
                                 Toast.show({content: '保存失败,请在下拉菜单选择一个有效的主网', icon: failIcon()});
                                 return;

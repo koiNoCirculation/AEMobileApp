@@ -19,9 +19,6 @@ export default function StartNavigator() {
         }
         return r;
     }
-    useEffect(() => {
-       
-    }, [])
     return (
         <NavigationContainer>
             <Stack.Navigator initialRouteName={isReady() ? "Main" : "Start"}>
