@@ -22,7 +22,7 @@ import Settings from "./Settings";
 import { Animated } from "react-native";
 import { ActivityIndicator, Button as AntButton, Tooltip } from '@ant-design/react-native';
 import Input from "@ant-design/react-native/lib/input-item/Input";
-import { Card } from '@ant-design/react-native'
+import { Card,Checkbox } from '@ant-design/react-native'
 var NBT = require('parsenbt-js');
 
 /*
@@ -104,6 +104,15 @@ function base64ToArrayBuffer(base64) {
 function getFluidNameFromNBT(nbtobj) {
     return nbtobj['comp>']["str>Fluid"];
 }
+function getServerInfo() {
+    return {
+        ip: SecureStore.getItem('server.ip'),
+        scheme: SecureStore.getItem('server.scheme'),
+        uuid: SecureStore.getItem('user.uuid'),
+        mainnet: JSON.parse(SecureStore.getItem('user.ae_main_net')),
+        port: SecureStore.getItem('server.port')
+    }
+}
 function replaceAE2FC(e: ItemStack, fluidInfo: object, loadedItem) {
     if (e.item_name == 'ae2fc:fluid_drop') {
         let fluidName = getFluidNameFromNBT(e.nbtobj)
@@ -171,14 +180,20 @@ function AECraftingPlanView({ route, navigation }) {
     const [isFocus, setIsFocus] = useState(false);
     const [value, setValue] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+    const [allowMissing, setAllowMissing] = useState(false);
     const stylesDropDown = StyleSheet.create({
+        container_dropdown: {
+            padding: 16,
+            flexDirection: 'row',
+            justifyContent: 'space-between'
+        }, 
         container: {
             backgroundColor: 'white',
             padding: 16,
         },
         dropdown: {
             height: 50,
-            width: Dimensions.get('window').width,
+            width: Dimensions.get('window').width * 0.75,
             borderColor: 'gray',
             borderWidth: 0.5,
             borderRadius: 8,
@@ -217,7 +232,7 @@ function AECraftingPlanView({ route, navigation }) {
     const [port, setPort] = useState<string>("");
     const [scheme, setScheme] = useState<number>(null);
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState<{dimid: number, x: number, y: number, z: number}>({} as any);
+    const [networks, setNetworks] = useState<{ dimid: number, x: number, y: number, z: number }>({} as any);
     useEffect(() => {
         console.log(serverInfo);
         const { ip, scheme, uuid, mainnet, port } = JSON.parse(serverInfo)
@@ -225,7 +240,7 @@ function AECraftingPlanView({ route, navigation }) {
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
-        if(port != null) {
+        if (port != null) {
             setPort(port)
         } else {
             setPort("44444");
@@ -235,13 +250,13 @@ function AECraftingPlanView({ route, navigation }) {
     function renderItem({ index, item }) {
         const [dname, icon] = loadItemSingle(db, item);
         return (
-            <Card style={{ flex:1, flexDirection:'column', backgroundColor: !item.missing ? '#00FF00' : '#FF0000' }}>
+            <Card style={{ flex: 1, flexDirection: 'column', backgroundColor: !item.missing ? '#00FF00' : '#FF0000' }}>
                 <Card.Header title={(<Text style={{ fontSize: 10 }}>{dname}</Text>)} thumb={(<Image style={{ width: 32, height: 32 }} source={icon != null ? { uri: `data:image/png;base64,${icon}` } : require('./barrier.png')}></Image>)}>
                 </Card.Header>
                 <Card.Body>
                     <View style={{ flex: 1, flexDirection: 'column' }}>
-                        {<Text style={{fontSize: 10}}>目前有:{formatItemCount(item.numberPresent)}</Text>}
-                        {<Text style={{fontSize: 10}}>{item.missing > 0 ? `缺失:${formatItemCount(item.missing)}` : `计划合成:${formatItemCount(item.numberRemainingToCraft)}`}</Text>}
+                        {<Text style={{ fontSize: 10 }}>目前有:{formatItemCount(item.numberPresent)}</Text>}
+                        {<Text style={{ fontSize: 10 }}>{item.missing > 0 ? `缺失:${formatItemCount(item.missing)}` : `计划合成:${formatItemCount(item.numberRemainingToCraft)}`}</Text>}
                     </View>
                 </Card.Body>
             </Card>
@@ -249,7 +264,7 @@ function AECraftingPlanView({ route, navigation }) {
     }
 
     useEffect(() => {
-        if (ip == null && scheme != null) {
+        if (ip == null || scheme == null) {
             return;
         }
         for (var i = 0; i < craftingPlan.plan.length; i++) {
@@ -258,7 +273,7 @@ function AECraftingPlanView({ route, navigation }) {
                 break;
             }
         }
-        const {dimid, x, y, z} = networks;
+        const { dimid, x, y, z } = networks;
         let url = `${scheme}://${ip}:${port}/AE2/getCraftingCpuInfoNoSSE?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}`;
 
         fetch(url).then(resp => {
@@ -283,10 +298,10 @@ function AECraftingPlanView({ route, navigation }) {
 
     //            
     return (<View style={styles.container}>
-        <ActivityIndicator toast animating={submitting} size="large" text="正在提交合成任务"/>
-        <Button title="确认合成计划" disabled={!canCraft} onPress={() => {
+        <ActivityIndicator toast animating={submitting} size="large" text="正在提交合成任务" />
+        <Button title="确认合成计划" disabled={!canCraft && !allowMissing} onPress={() => {
             setSubmitting(true);
-            const {dimid, x, y, z} = networks;
+            const { dimid, x, y, z } = networks;
             var params = {
                 'ownerUUID': uuid,
                 'x': x,
@@ -297,7 +312,8 @@ function AECraftingPlanView({ route, navigation }) {
                 count: itemStack.count,
                 item: itemStack.item_name,
                 meta: itemStack.meta,
-                nbt: itemStack.nbt
+                nbt: itemStack.nbt,
+                'allowMissing': allowMissing
             }
             fetch(`${scheme}://${ip}:${port}/AE2/startCraftingJob`,
                 {
@@ -323,50 +339,56 @@ function AECraftingPlanView({ route, navigation }) {
                 })
             console.log("开始合成 " + JSON.stringify(itemStack));
         }} />
-        <Dropdown
-            style={[stylesDropDown.dropdown, isFocus && { borderColor: 'blue' }]}
-            placeholderStyle={stylesDropDown.placeholderStyle}
-            selectedTextStyle={stylesDropDown.selectedTextStyle}
-            inputSearchStyle={stylesDropDown.inputSearchStyle}
-            iconStyle={stylesDropDown.iconStyle}
-            data={cpus.map((cpu, idx) => {
-                return {
-                    label: `CPU #${cpu.idx} - ${cpu.cpuName}, ${cpu.storage} 字节`,
-                    value: cpu.idx
-                }
-            })}
-            search
-            maxHeight={300}
-            labelField="label"
-            valueField="value"
-            placeholder={!isFocus ? (cpus.length > 0 ? '选择一个CPU' : '没有可用的合成cpu') : '...'}
-            searchPlaceholder="Search..."
-            value={value}
-            onFocus={() => setIsFocus(true)}
-            onBlur={() => setIsFocus(false)}
-            onChange={item => {
-                setValue(item.value);
-                setIsFocus(false);
-            }}
-            renderLeftIcon={() => (
-                <AntDesign
-                    style={stylesDropDown.icon}
-                    color={isFocus ? 'blue' : 'black'}
-                    name="Safety"
-                    size={20}
-                />
-            )}
-        />
-        <FlexGrid keyExtractor={(item, index) => index.toString()} 
-        data={craftingTaskItem} 
-        renderItem={renderItem} 
-        virtualization={true}
-         virtualizedBufferFactor={4} 
-         maxColumnRatioUnits={3}
-          itemSizeUnit={108}
-           showScrollIndicator={true}
+        <View style={stylesDropDown.container_dropdown}>
+            <Dropdown
+                style={[stylesDropDown.dropdown, isFocus && { borderColor: 'blue' }]}
+                placeholderStyle={stylesDropDown.placeholderStyle}
+                selectedTextStyle={stylesDropDown.selectedTextStyle}
+                inputSearchStyle={stylesDropDown.inputSearchStyle}
+                iconStyle={stylesDropDown.iconStyle}
+                data={cpus.map((cpu, idx) => {
+                    return {
+                        label: `CPU #${cpu.idx} - ${cpu.cpuName}, ${cpu.storage} 字节`,
+                        value: cpu.idx
+                    }
+                })}
+                search
+                maxHeight={300}
+                labelField="label"
+                valueField="value"
+                placeholder={!isFocus ? (cpus.length > 0 ? '选择一个CPU' : '没有可用的合成cpu') : '...'}
+                searchPlaceholder="Search..."
+                value={value}
+                onFocus={() => setIsFocus(true)}
+                onBlur={() => setIsFocus(false)}
+                onChange={item => {
+                    setValue(item.value);
+                    setIsFocus(false);
+                }}
+                renderLeftIcon={() => (
+                    <AntDesign
+                        style={stylesDropDown.icon}
+                        color={isFocus ? 'blue' : 'black'}
+                        name="Safety"
+                        size={20}
+                    />
+                )}
+            />
+        <Checkbox onChange={(e) => {
+            setAllowMissing(e.target.checked)
+            }}>缺失</Checkbox>
+        </View>
+
+        <FlexGrid keyExtractor={(item, index) => index.toString()}
+            data={craftingTaskItem}
+            renderItem={renderItem}
+            virtualization={true}
+            virtualizedBufferFactor={4}
+            maxColumnRatioUnits={3}
+            itemSizeUnit={108}
+            showScrollIndicator={true}
             style={{ flex: 1, alignItems: 'center' }}
-            itemContainerStyle={{borderStyle: 'solid', borderWidth: 1}} />
+            itemContainerStyle={{ borderStyle: 'solid', borderWidth: 1 }} />
     </View>);
 }
 
@@ -379,17 +401,17 @@ function AECraftingDetailView({ route, navigation }) {
     const [port, setPort] = useState("");
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState<{dimid: number, x: number, y: number, z: number}>({} as any);
+    const [networks, setNetworks] = useState<{ dimid: number, x: number, y: number, z: number }>({} as any);
     const [isConnected, setIsConnected] = useState(false);
     let es = null;
 
     useEffect(() => {
-        const { ip, scheme, uuid, mainnet,port } = JSON.parse(serverInfo)
+        const { ip, scheme, uuid, mainnet, port } = JSON.parse(serverInfo)
         setIP(ip);
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
-        if(port != null) {
+        if (port != null) {
             setPort(port)
         } else {
             setPort("44444");
@@ -398,15 +420,15 @@ function AECraftingDetailView({ route, navigation }) {
 
     function renderItem({ index, item }) {
         return (
-            <Card style={{flex:1, flexDirection:'column', backgroundColor: item.numberSent > 0 ? '#00FF80' : (item.numberRemainingToCraft > 0 ? '#FFFE00' : '#FFFFFF') }}>
+            <Card style={{ flex: 1, flexDirection: 'column', backgroundColor: item.numberSent > 0 ? '#00FF80' : (item.numberRemainingToCraft > 0 ? '#FFFE00' : '#FFFFFF') }}>
                 <Card.Header title={(<Text style={{ fontSize: 9 }}>{item.dname}</Text>)} thumb={(<Image style={{ width: 24, height: 24 }} source={item.icon != null ? { uri: `data:image/png;base64,${item.icon}` } : require('./barrier.png')}></Image>)}>
                 </Card.Header>
                 <Card.Body>
                     <View style={{ flex: 1, flexDirection: 'column' }}>
-                        {item.numberPresent > 0 ? <Text style={{fontSize:10}}>目前有:{formatItemCount(item.numberPresent)}</Text> : <View></View>}
-                        {item.missing > 0 ? <Text style={{fontSize:10}}>{`缺失:${formatItemCount(item.missing)}`})</Text> : <View/>}
-                        {item.numberRemainingToCraft > 0 ? <Text style={{fontSize:10}}>{`计划合成:${formatItemCount(item.numberRemainingToCraft)}`}</Text> : <View/>}
-                        {(item.numberSent > 0 ? <Text style={{fontSize:10}}>{`正在合成:${formatItemCount(item.numberSent)}`}</Text> : <View />)}
+                        {item.numberPresent > 0 ? <Text style={{ fontSize: 10 }}>目前有:{formatItemCount(item.numberPresent)}</Text> : <View></View>}
+                        {item.missing > 0 ? <Text style={{ fontSize: 10 }}>{`缺失:${formatItemCount(item.missing)}`})</Text> : <View />}
+                        {item.numberRemainingToCraft > 0 ? <Text style={{ fontSize: 10 }}>{`计划合成:${formatItemCount(item.numberRemainingToCraft)}`}</Text> : <View />}
+                        {(item.numberSent > 0 ? <Text style={{ fontSize: 10 }}>{`正在合成:${formatItemCount(item.numberSent)}`}</Text> : <View />)}
                     </View>
                 </Card.Body>
             </Card>
@@ -418,7 +440,7 @@ function AECraftingDetailView({ route, navigation }) {
         if (ip == null && scheme != null) {
             return;
         }
-        const {dimid, x, y, z}= networks;
+        const { dimid, x, y, z } = networks;
         var es: EventSource = new EventSource(`${scheme}://${ip}:${port}/AE2/getCraftingDetails?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}&cpuid=${cpuid}`)
         es.addEventListener("message", (event) => {
             var resp = JSON.parse(event.data);
@@ -477,7 +499,7 @@ function AECraftingDetailView({ route, navigation }) {
             </TouchableOpacity>
             <Button onPress={() => {
                 const { cpuid } = route.params;
-                const {dimid, x, y, z} = networks;
+                const { dimid, x, y, z } = networks;
                 var params = {
                     'ownerUUID': uuid,
                     'x': x,
@@ -501,14 +523,14 @@ function AECraftingDetailView({ route, navigation }) {
             }} title="取消合成"></Button></View>
         <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
             <FlexGrid keyExtractor={(item, index) => index.toString()}
-             data={craftingTaskItem}
-              renderItem={renderItem} 
-              virtualization={true}
-               virtualizedBufferFactor={1}
+                data={craftingTaskItem}
+                renderItem={renderItem}
+                virtualization={true}
+                virtualizedBufferFactor={1}
                 maxColumnRatioUnits={Math.floor(Dimensions.get('window').width / 108)} itemSizeUnit={108}
-                 showScrollIndicator={true}
-                  style={{ flex: 1, alignItems: 'center' }}
-                  itemContainerStyle={{borderStyle: 'solid', borderWidth: 1, flexGrow: 0}} />
+                showScrollIndicator={true}
+                style={{ flex: 1, alignItems: 'center' }}
+                itemContainerStyle={{ borderStyle: 'solid', borderWidth: 1, flexGrow: 0 }} />
         </View>
     </View>);
 }
@@ -525,14 +547,14 @@ function AECraftingCPUView({ route, navigation }) {
     const [port, setPort] = useState<string>("");
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState<{dimid: number, x: number, y: number, z: number}>({} as any);
+    const [networks, setNetworks] = useState<{ dimid: number, x: number, y: number, z: number }>({} as any);
     useEffect(() => {
-        const { ip, scheme, uuid, mainnet, port} = JSON.parse(serverInfo)
+        const { ip, scheme, uuid, mainnet, port } = JSON.parse(serverInfo)
         setIP(ip);
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
-        if(port != null) {
+        if (port != null) {
             setPort(port)
         } else {
             setPort("44444");
@@ -540,7 +562,7 @@ function AECraftingCPUView({ route, navigation }) {
     }, [])
 
     function getData() {
-        const {dimid, x, y, z} = networks;
+        const { dimid, x, y, z } = networks;
         var es = new EventSource(`${scheme}://${ip}:${port}/AE2/getCraftingCpuInfo?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}`)
         es.addEventListener("message", (event) => {
             var resp = JSON.parse(event.data);
@@ -617,7 +639,7 @@ function AEItemDetailView({ route, navigation }) {
     const [port, setPort] = useState<string>("");
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState<{dimid:number, x: number, y: number, z: number}>({} as any);
+    const [networks, setNetworks] = useState<{ dimid: number, x: number, y: number, z: number }>({} as any);
 
     const [calculating, setCalculating] = useState(false);
 
@@ -636,12 +658,12 @@ function AEItemDetailView({ route, navigation }) {
     })
 
     useEffect(() => {
-        const { ip, scheme, uuid, mainnet, port} = JSON.parse(serverInfo)
+        const { ip, scheme, uuid, mainnet, port } = JSON.parse(serverInfo)
         setIP(ip);
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
-        if(port != null) {
+        if (port != null) {
             setPort(port)
         } else {
             setPort("44444");
@@ -666,9 +688,11 @@ function AEItemDetailView({ route, navigation }) {
                     navigation.goBack();
                 },
             },
-            { text: '取消', onPress: () => {
-                
-            }},
+            {
+                text: '取消', onPress: () => {
+
+                }
+            },
         ])
     }
     return (<View style={styles.ItemDetail}>
@@ -704,7 +728,7 @@ function AEItemDetailView({ route, navigation }) {
                 loadingAnimation.start();
                 setCalculating(true);
 
-                const {dimid, x, y, z} = networks;
+                const { dimid, x, y, z } = networks;
                 var params = {
                     'ownerUUID': uuid,
                     'x': x,
@@ -725,7 +749,7 @@ function AEItemDetailView({ route, navigation }) {
                 })
                 es.addEventListener('message', (event) => {
                     let data = JSON.parse(event.data)
-                    if (typeof(data.body) != 'string') {
+                    if (typeof (data.body) != 'string') {
                         data.body.plan.sort((a, b) => b.missing - a.missing)
                         console.log(event.data)
                         loadingAnimation.stop();
@@ -744,9 +768,9 @@ function AEItemDetailView({ route, navigation }) {
                     loadingAnimation.stop();
                     setCalculating(false);
                 })
-                
+
             }}>合成</AntButton>
-            <AntButton type='primary' disabled={calculating} onPress={() => { if(calculating) {goBackAlert()} else {navigation.goBack()} }}>返回</AntButton></View>
+            <AntButton type='primary' disabled={calculating} onPress={() => { if (calculating) { goBackAlert() } else { navigation.goBack() } }}>返回</AntButton></View>
 
     </View >);
 }
@@ -762,7 +786,7 @@ function AEItemView({ route, navigation }) {
     const [port, setPort] = useState<string>("");
     const [scheme, setScheme] = useState<string>('http');
     const [uuid, setUUID] = useState(null);
-    const [networks, setNetworks] = useState<{dimid:number, x: number, y: number, z: number}>({} as any);
+    const [networks, setNetworks] = useState<{ dimid: number, x: number, y: number, z: number }>({} as any);
 
     const [sortAsc, setSortAsc] = useState(false);
 
@@ -790,12 +814,12 @@ function AEItemView({ route, navigation }) {
         if (serverInfo === "null") {
             return;
         }
-        const { ip, scheme, uuid, mainnet,port} = JSON.parse(serverInfo)
+        const { ip, scheme, uuid, mainnet, port } = JSON.parse(serverInfo)
         setIP(ip);
         setScheme(scheme);
         setUUID(uuid);
         setNetworks(mainnet);
-        if(port != null) {
+        if (port != null) {
             setPort(port)
         } else {
             setPort("44444");
@@ -880,7 +904,7 @@ function AEItemView({ route, navigation }) {
         return r;
     }
     function getData() {
-        const {dimid, x, y, z} = networks;
+        const { dimid, x, y, z } = networks;
         var es: EventSource = new EventSource(`${scheme}://${ip}:${port}/AE2/getItems?ownerUUID=${uuid}&x=${x}&y=${y}&z=${z}&dimid=${dimid}&craftableOnly=${!showAll}`)
         es.addEventListener("message", (event) => {
             var resp = JSON.parse(event.data);
@@ -902,7 +926,6 @@ function AEItemView({ route, navigation }) {
                 let tojoin = [];
                 querySet.forEach(i => tojoin.push(i));
                 let sql = `select concat(item_name, ':', item_meta) as key, icon, dname from item_panel where item_name in (${tojoin.join(",")});`;
-                console.log(sql);
                 db.getAllAsync<{ key: string, icon: Uint8Array, dname: string }>(sql).then(
                     data => {
                         setLoadedItem(prevState => {
@@ -995,14 +1018,9 @@ function AEItemView({ route, navigation }) {
     );
 }
 
-function AEItemStackedView({ route, navigation }) {
+function AEItemStackedView({ route, navigation}) {
     return (
-        <ItemViewStack.Navigator screenOptions={{
-            headerShown: true, headerRight: () =>
-                <Button title="设置" onPress={() => {
-                    navigation.navigate('Settings');
-                }} />
-        }}>
+        <ItemViewStack.Navigator screenOptions={{headerShown: false}}>
             <ItemViewStack.Screen name="AECraftableItems" component={AEItemView} options={{
                 title: 'AE物品总览'
             }} />
@@ -1019,14 +1037,14 @@ function AEItemStackedView({ route, navigation }) {
     );
 }
 
-export default function AEView({ route, navigation }) {
-    const serverInfo = {
+export default function AEView({ route, navigation}) {
+    const [serverInfo, setServerInfo] = useState({
         ip: SecureStore.getItem('server.ip'),
         scheme: SecureStore.getItem('server.scheme'),
         uuid: SecureStore.getItem('user.uuid'),
         mainnet: JSON.parse(SecureStore.getItem('user.ae_main_net')),
         port: SecureStore.getItem('server.port')
-    }
+    });
     const [fluidMapping, setFluidMapping] = useState({})
     const db = useSQLiteContext()
     const [ready, setReady] = useState(false);
@@ -1043,11 +1061,25 @@ export default function AEView({ route, navigation }) {
 
     function scrOptions({ route }) {
         return {
-            headerShown: false,
+            headerShown: true,
             title: route.name == 'AEItemStackedView' ? 'AE物品总览' : '合成CPU监控',
             tabBarIcon: ({ focused, color, size }) => {
                 return <Image source={route.name == 'AEItemStackedView' ? require("./assets/16384k.png") : require("./assets/MT-3662.png")} />
-            }
+            },
+            headerRight: () =>
+            <Button title="设置" onPress={() => {
+                navigation.navigate('Settings', {callback:() => {
+                    
+                    setServerInfo({
+                        ip: SecureStore.getItem('server.ip'),
+                        scheme: SecureStore.getItem('server.scheme'),
+                        uuid: SecureStore.getItem('user.uuid'),
+                        mainnet: JSON.parse(SecureStore.getItem('user.ae_main_net')),
+                        port: SecureStore.getItem('server.port')
+                    });
+                   console.log("Hi");
+                }});
+            }} />
         }
     }
 
