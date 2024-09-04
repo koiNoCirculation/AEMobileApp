@@ -13,7 +13,7 @@ import { Provider } from "@ant-design/react-native";
 import { Image } from "react-native";
 
 
-export default function Settings({ route, navigation }) {
+export default function Settings({ route, navigation}) {
     const [ip, setIP] = useState<string>(null);
     const [port, setPort] = useState<string>("");
     const [scheme, setScheme] = useState("http");
@@ -170,7 +170,6 @@ export default function Settings({ route, navigation }) {
 
 
                     <Button type="primary" onPress={() => {
-                        console.log("press");
                         try {
                             SecureStore.setItem('server.ip', ip);
                             SecureStore.setItem('server.scheme', scheme);
@@ -190,6 +189,9 @@ export default function Settings({ route, navigation }) {
                             navigation.goBack();
                         } else {
                             navigation.navigate('Main');
+                        }
+                        if(route.params.callback() != undefined) {
+                            route.params.callback();
                         }
                     }}>保存设置</Button>
                 </View>
