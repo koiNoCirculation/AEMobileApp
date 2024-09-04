@@ -329,6 +329,7 @@ function AECraftingPlanView({ route, navigation }) {
                             navigation.popToTop();
                             alert("合成任务提交成功");
                         } else {
+                            console.log(j);
                             alert("合成任务提交失败");
                         }
                     })
@@ -1020,7 +1021,7 @@ function AEItemView({ route, navigation }) {
 
 function AEItemStackedView({ route, navigation}) {
     return (
-        <ItemViewStack.Navigator screenOptions={{headerShown: false}}>
+        <ItemViewStack.Navigator screenOptions={{headerTitle:""}}>
             <ItemViewStack.Screen name="AECraftableItems" component={AEItemView} options={{
                 title: 'AE物品总览'
             }} />
@@ -1069,7 +1070,6 @@ export default function AEView({ route, navigation}) {
             headerRight: () =>
             <Button title="设置" onPress={() => {
                 navigation.navigate('Settings', {callback:() => {
-                    
                     setServerInfo({
                         ip: SecureStore.getItem('server.ip'),
                         scheme: SecureStore.getItem('server.scheme'),
